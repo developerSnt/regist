@@ -11,40 +11,41 @@ using Microsoft.AspNetCore.Http;
 using System.Xml;
 using System;
 using System.IO;
+using System.Drawing; // Add this
+using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using static System.Net.WebRequestMethods;
 using regist;
 using HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
-using PdfSharpCore;
-using PdfSharpCore.Pdf;
-using TheArtOfDev.HtmlRenderer.PdfSharp;
-using PdfSharpCore.Drawing;
+//using PdfSharpCore;
+//using PdfSharpCore.Pdf;
+//using TheArtOfDev.HtmlRenderer.PdfSharp;
+//using PdfSharpCore.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 
 using System;
-using System.Drawing;
+//using System.Drawing;
 using System.IO;
 using static System.Net.Mime.MediaTypeNames;
-using PdfSharpCore.Drawing.Layout;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using SixLabors.Fonts;
+//using PdfSharpCore.Drawing.Layout;
+//using Microsoft.AspNetCore.Mvc.RazorPages;
+//using SixLabors.Fonts;
 using System.Net;
-using Spire.Pdf.Graphics;
-using Spire.Pdf;
-using SpirePdf = Spire.Pdf;
-using PdfSharpCore = PdfSharpCore.Pdf;
 
-using System.Drawing;
+
+using Spire.Pdf;
+using Spire.Pdf.Graphics;
+using System.IO;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
-using PdfDocument = PdfSharpCore.Pdf.PdfDocument;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCors(options =>
 {
@@ -843,46 +844,111 @@ app.MapGet("/api/NewList/{id}", async(AppData dbContext, int id) =>
 //        return Results.NotFound("PDF creation failed.");
 //    }
 //});
-app.MapPost("/createpdf", async (string tital, string date, string imageurl, string desctiption) =>
+
+app.MapPost("/createpdf", async (string title, string date, string description, string imageUrl) =>
 {
-    // Create a new PDF document
-    using var document = new PdfDocument();
-
-    // Add a page to the document
-    var page = document.Pages.Add();
-
-    // Create a graphics object to draw on the page
-    var graphics = page.Canvas; // Use Canvas to draw on the page
-
-    // Draw the title
-    graphics.DrawString(tital, new PdfFont(PdfFontFamily.Helvetica, 16f), PdfBrushes.Black, new PointF(0, 0));
-
-    // Draw the date
-    graphics.DrawString($"Date: {DateTime.Parse(date).ToString("yyyy-MM-dd")}", new PdfFont(PdfFontFamily.Helvetica, 12f), PdfBrushes.Black, new PointF(0, 40));
-
-    // Draw the description
-    graphics.DrawString(desctiption, new PdfFont(PdfFontFamily.Helvetica, 12f), PdfBrushes.Black, new RectangleF(0, 80, page.GetClientSize().Width, page.GetClientSize().Height));
-
-    // Handle image
-    if (!string.IsNullOrWhiteSpace(imageurl))
+    // Validate input
+    if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(date) || string.IsNullOrEmpty(description) || string.IsNullOrEmpty(imageUrl))
     {
-        using var httpClient = new HttpClient();
-        var imageBytes = await httpClient.GetByteArrayAsync(imageurl);
-
-        using var imageStream = new MemoryStream(imageBytes);
-        var image = PdfImage.FromStream(imageStream);
-        graphics.DrawImage(image, new RectangleF(0, 150, image.Width, image.Height));
+        return Results.BadRequest("Title, date, description, and image URL are required.");
     }
 
-    // Save the document to a MemoryStream
-    using var pdfStream = new MemoryStream();
-    document.SaveToStream(pdfStream);
+    // Sanitize the title for the filename
+    string sanitizedTitle = Regex.Replace(title, @"[<>:""/\\|?*\x00-\x1F]", "_");
 
-    // Return the PDF file
-    pdfStream.Position = 0;
-    return Results.File(pdfStream, "application/pdf", "document.pdf");
+    // Define the file path
+    string filePath = Path.Combine("D:\\TestPdf", sanitizedTitle + ".pdf");
+
+    // Create a PdfDocument instance
+    PdfDocument pdf = new PdfDocument();
+
+    // Add a page
+    PdfPageBase page = pdf.Pages.Add();
+
+    // Define page dimensions
+    SizeF pageSize = page.Canvas.ClientSize;
+    float pageWidth = pageSize.Width;
+    float pageHeight = pageSize.Height;
+
+    // Create a PdfFont instance for the title (bold and centered)
+    PdfFont titleFont = new PdfFont(PdfFontFamily.Helvetica, 14, PdfFontStyle.Bold);
+    PdfStringFormat titleFormat = new PdfStringFormat
+    {
+        Alignment = PdfTextAlignment.Center
+    };
+
+    // Draw the title (centered)
+    RectangleF titleBounds = new RectangleF(new PointF(0, 10), new SizeF(pageWidth, 30));
+    page.Canvas.DrawString(title, titleFont, PdfBrushes.Black, titleBounds, titleFormat);
+
+    // Create a PdfFont instance for the date (right-aligned)
+    PdfFont dateFont = new PdfFont(PdfFontFamily.Helvetica, 11);
+    PdfStringFormat dateFormat = new PdfStringFormat
+    {
+        Alignment = PdfTextAlignment.Right
+    };
+
+    // Draw the date (right-aligned)
+    RectangleF dateBounds = new RectangleF(new PointF(0, 50), new SizeF(pageWidth - 20, 30));
+    page.Canvas.DrawString(date, dateFont, PdfBrushes.Black, dateBounds, dateFormat);
+
+    // Download the image from the URL
+    using (HttpClient httpClient = new HttpClient())
+    {
+        try
+        {
+            byte[] imageData = await httpClient.GetByteArrayAsync(imageUrl);
+            using (MemoryStream imageStream = new MemoryStream(imageData))
+            {
+                // Load the image into a PdfImage object
+                PdfImage image = PdfImage.FromStream(imageStream);
+
+                // Define image bounds and center it on the page
+                float imageWidth = 200; // Adjust width as needed
+                float imageHeight = 150; // Adjust height as needed
+                RectangleF imageBounds = new RectangleF(
+                    (pageWidth - imageWidth) / 2,
+                    100, // Position below the date
+                    imageWidth,
+                    imageHeight);
+
+                // Draw the image onto the page
+                page.Canvas.DrawImage(image, imageBounds);
+            }
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest($"Failed to download or add image: {ex.Message}");
+        }
+    }
+
+    // Create a PdfFont instance for the description
+    PdfFont descriptionFont = new PdfFont(PdfFontFamily.Helvetica, 11);
+    PdfStringFormat descriptionFormat = new PdfStringFormat
+    {
+        Alignment = PdfTextAlignment.Left,
+        LineSpacing = 20f
+    };
+
+    // Draw the description below the image
+    RectangleF descriptionBounds = new RectangleF(new PointF(10, 260), new SizeF(pageWidth - 20, pageHeight - 260));
+    PdfTextWidget descriptionWidget = new PdfTextWidget(description, descriptionFont, PdfBrushes.Black)
+    {
+        StringFormat = descriptionFormat
+    };
+    descriptionWidget.Draw(page, descriptionBounds);
+
+    // Save the PDF to the specified path
+    try
+    {
+        pdf.SaveToFile(filePath, Spire.Pdf.FileFormat.PDF);
+        return Results.Ok($"PDF successfully saved to {filePath}");
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest($"Failed to save PDF: {ex.Message}");
+    }
 });
-
 //app.MapPost("/createpdf", async (string title, string description, string newsDate, string imageUrl) =>
 //{
 //    try
@@ -1034,3 +1100,4 @@ app.UseHttpsRedirection();
 app.Run();
 
 
+public record PdfRequest(string Title, string Date, string Description);
