@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http;
 using System.Xml;
@@ -29,7 +32,19 @@ using PdfSharpCore.Drawing.Layout;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SixLabors.Fonts;
 using System.Net;
+using Spire.Pdf.Graphics;
+using Spire.Pdf;
+using SpirePdf = Spire.Pdf;
+using PdfSharpCore = PdfSharpCore.Pdf;
 
+using System.Drawing;
+using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
+using PdfDocument = PdfSharpCore.Pdf.PdfDocument;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCors(options =>
 {
@@ -707,150 +722,274 @@ app.MapGet("/api/NewList/{id}", async(AppData dbContext, int id) =>
 //        return Results.NotFound("PDF creation failed.");
 //    }
 //});
-app.MapPost("/createpdf", async (string title, string description, string newsDate, string imageUrl) =>
+//app.MapPost("/createpdf", async (string title, string description, string newsDate, string imageUrl) =>
+//{
+//    try
+//    {
+//        // Step 1: Validate input (optional)
+//        if (string.IsNullOrEmpty(title))
+//        {
+//            return Results.BadRequest("Title cannot be empty.");
+//        }
+
+//        // Step 2: Setup PDF file path and directory
+//        var pdfFileName = $"{title}.pdf";
+//        var pdfDirectory = @"D:\TestPdf";
+//        var pdfPath = Path.Combine(pdfDirectory, pdfFileName);
+
+//        // Ensure the directory exists; create if it doesn't
+//        Directory.CreateDirectory(pdfDirectory);
+
+//        // Step 3: Create the PDF document
+//        using (PdfDocument document = new PdfDocument())
+//        {
+//            // Fonts setup
+//            XFont titleFont = new XFont("Arial", 14, XFontStyle.BoldItalic);
+//            XFont dateFont = new XFont("Arial", 12, XFontStyle.Regular);
+//            XFont descriptionFont = new XFont("Arial", 10, XFontStyle.Regular);
+
+//            // Split the description into paragraphs for easier handling
+//            string[] paragraphs = description.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+//            foreach (string paragraph in paragraphs)
+//            {
+//                // Initialize variables for managing pages and content height
+//                double contentHeight = 0;
+//                bool newPageNeeded = false;
+
+//                do
+//                {
+//                    // Add a new page to the document
+//                    PdfPage page = document.AddPage();
+//                    XGraphics gfx = XGraphics.FromPdfPage(page);
+
+//                    // Calculate title size and position
+//                    double titleX = 50;
+//                    double titleY = 20;
+//                    XRect titleRect = new XRect(titleX, titleY, page.Width - 100, page.Height);
+
+//                    // Draw title centered horizontally with word wrapping
+//                    XTextFormatter titleFormatter = new XTextFormatter(gfx);
+//                    titleFormatter.DrawString(title, titleFont, XBrushes.Black, titleRect, XStringFormats.TopLeft);
+
+//                    // Calculate date size and position
+//                    string formattedDate = $"Date: {newsDate}";
+//                    XSize dateSize = gfx.MeasureString(formattedDate, dateFont);
+//                    double dateX = page.Width - dateSize.Width - 50;
+//                    double dateY = titleRect.Top;
+
+//                    // Draw news date (right-aligned next to the title)
+//                    gfx.DrawString(formattedDate, dateFont, XBrushes.Black, new XPoint(dateX, dateY));
+
+//                    // Embed image (centered)
+//                    if (!string.IsNullOrEmpty(imageUrl))
+//                    {
+//                        try
+//                        {
+//                            using (WebClient webClient = new WebClient())
+//                            {
+//                                byte[] imageBytes = webClient.DownloadData(imageUrl);
+
+//                                using (MemoryStream ms = new MemoryStream(imageBytes))
+//                                {
+//                                    // Create an XImage from the MemoryStream
+//                                    XImage image = XImage.FromStream(() => ms);
+
+//                                    double imageWidth = 200;
+//                                    double imageHeight = imageWidth * image.PixelHeight / image.PixelWidth;
+//                                    gfx.DrawImage(image, (page.Width - imageWidth) / 2, 100, imageWidth, imageHeight);
+//                                }
+//                            }
+//                        }
+//                        catch (Exception ex)
+//                        {
+//                            Console.WriteLine($"Error loading image: {ex.Message}");
+//                        }
+//                    }
+//                    else
+//                    {
+//                        Console.WriteLine("Image URL is empty or invalid.");
+//                    }
+
+//                    // Draw description (justified with proper margin)
+//                    XRect descriptionRect = new XRect(50, 300, page.Width - 100, page.Height - 350);
+//                    XTextFormatter tf = new XTextFormatter(gfx);
+
+//                    // Draw the paragraph
+//                    tf.DrawString(paragraph, descriptionFont, XBrushes.Black, descriptionRect, XStringFormats.TopLeft);
+
+//                    // Calculate the height of the drawn text
+//                    double textHeight = descriptionFont.GetHeight();
+
+//                    // Update content height and check if a new page is needed
+//                    contentHeight += textHeight;
+//                    newPageNeeded = contentHeight > (page.Height - 350); // 350 is the bottom margin
+
+//                    // Save the page if it has content or if it's the first page
+//                    if (contentHeight > 0 || document.Pages.Count == 1)
+//                    {
+//                        document.Save(pdfPath);
+//                    }
+//                }
+//                while (newPageNeeded);
+//            }
+//        }
+
+//        return Results.Ok($"PDF '{pdfFileName}' created and saved to D:\\TestPdf.");
+//    }
+//    catch (Exception ex)
+//    {
+//        Console.WriteLine($"Error creating PDF: {ex.Message}");
+//        return Results.NotFound("PDF creation failed.");
+//    }
+//});
+app.MapPost("/createpdf", async (string tital, string date, string imageurl, string desctiption) =>
 {
-    try
-    {
-        // Step 1: Validate input (optional)
-        if (string.IsNullOrEmpty(title))
-        {
-            return Results.BadRequest("Title cannot be empty.");
-        }
-
-        // Step 2: Setup PDF file path and directory
-        var pdfFileName = $"{title}.pdf";
-        var pdfDirectory = @"D:\TestPdf";
-        var pdfPath = Path.Combine(pdfDirectory, pdfFileName);
-
-        // Ensure the directory exists; create if it doesn't
-        Directory.CreateDirectory(pdfDirectory);
-
-        // Step 3: Create the PDF document
-        using (PdfDocument document = new PdfDocument())
-        {
-            // Fonts setup
-            XFont titleFont = new XFont("Arial", 14, XFontStyle.BoldItalic);
-            XFont dateFont = new XFont("Arial", 12, XFontStyle.Regular);
-            XFont descriptionFont = new XFont("Arial", 10, XFontStyle.Regular);
-
-            // Split the description into paragraphs for easier handling
-            string[] paragraphs = description.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-
-            foreach (string paragraph in paragraphs)
-            {
-                // Initialize variables for managing pages and content height
-                double contentHeight = 0;
-                bool newPageNeeded = false;
-
-                do
-                {
-                    // Add a new page to the document
-                    PdfPage page = document.AddPage();
-                    XGraphics gfx = XGraphics.FromPdfPage(page);
-
-                    // Calculate title size and position
-                    double titleX = 50;
-                    double titleY = 20;
-                    XRect titleRect = new XRect(titleX, titleY, page.Width - 100, page.Height);
-
-                    // Draw title centered horizontally with word wrapping
-                    XTextFormatter titleFormatter = new XTextFormatter(gfx);
-                    titleFormatter.DrawString(title, titleFont, XBrushes.Black, titleRect, XStringFormats.TopLeft);
-
-                    // Calculate date size and position
-                    string formattedDate = $"Date: {newsDate}";
-                    XSize dateSize = gfx.MeasureString(formattedDate, dateFont);
-                    double dateX = page.Width - dateSize.Width - 50;
-                    double dateY = titleRect.Top;
-
-                    // Draw news date (right-aligned next to the title)
-                    gfx.DrawString(formattedDate, dateFont, XBrushes.Black, new XPoint(dateX, dateY));
-
-                    // Embed image (centered)
-                    if (!string.IsNullOrEmpty(imageUrl))
-                    {
-                        try
-                        {
-                            using (WebClient webClient = new WebClient())
-                            {
-                                byte[] imageBytes = webClient.DownloadData(imageUrl);
-
-                                using (MemoryStream ms = new MemoryStream(imageBytes))
-                                {
-                                    // Create an XImage from the MemoryStream
-                                    XImage image = XImage.FromStream(() => ms);
-
-                                    double imageWidth = 200;
-                                    double imageHeight = imageWidth * image.PixelHeight / image.PixelWidth;
-                                    gfx.DrawImage(image, (page.Width - imageWidth) / 2, 100, imageWidth, imageHeight);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error loading image: {ex.Message}");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Image URL is empty or invalid.");
-                    }
-
-                    // Draw description (justified with proper margin)
-                    XRect descriptionRect = new XRect(50, 300, page.Width - 100, page.Height - 350);
-                    XTextFormatter tf = new XTextFormatter(gfx);
-
-                    // Draw the paragraph
-                    tf.DrawString(paragraph, descriptionFont, XBrushes.Black, descriptionRect, XStringFormats.TopLeft);
-
-                    // Calculate the height of the drawn text
-                    double textHeight = descriptionFont.GetHeight();
-
-                    // Update content height and check if a new page is needed
-                    contentHeight += textHeight;
-                    newPageNeeded = contentHeight > (page.Height - 350); // 350 is the bottom margin
-
-                    // Save the page if it has content or if it's the first page
-                    if (contentHeight > 0 || document.Pages.Count == 1)
-                    {
-                        document.Save(pdfPath);
-                    }
-                }
-                while (newPageNeeded);
-            }
-        }
-
-        return Results.Ok($"PDF '{pdfFileName}' created and saved to D:\\TestPdf.");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error creating PDF: {ex.Message}");
-        return Results.NotFound("PDF creation failed.");
-    }
-});
-
-
-app.MapGet("/generate-pdf", () =>
-{
-    // Create new PDF document
-    PdfDocument document = new PdfDocument();
+    // Create a new PDF document
+    using var document = new PdfDocument();
 
     // Add a page to the document
-    PdfPage page = document.AddPage();
-    XGraphics gfx = XGraphics.FromPdfPage(page);
+    var page = document.Pages.Add();
 
-    // Load an image from a file (replace with your image path)
-    XImage image = XImage.FromFile("D:\\Img\\Test.jpg");
+    // Create a graphics object to draw on the page
+    var graphics = page.Canvas; // Use Canvas to draw on the page
 
-    // Draw the image on the PDF page
-    gfx.DrawImage(image, 50, 50, 200, 100); // Adjust position and size as needed
+    // Draw the title
+    graphics.DrawString(tital, new PdfFont(PdfFontFamily.Helvetica, 16f), PdfBrushes.Black, new PointF(0, 0));
 
-    // Save the document to a file on D drive
-    string filePath = @"D:\TestPdf\demo12.pdf";
-    document.Save(filePath);
+    // Draw the date
+    graphics.DrawString($"Date: {DateTime.Parse(date).ToString("yyyy-MM-dd")}", new PdfFont(PdfFontFamily.Helvetica, 12f), PdfBrushes.Black, new PointF(0, 40));
 
-    return Results.Ok($"PDF file saved to {filePath}");
+    // Draw the description
+    graphics.DrawString(desctiption, new PdfFont(PdfFontFamily.Helvetica, 12f), PdfBrushes.Black, new RectangleF(0, 80, page.GetClientSize().Width, page.GetClientSize().Height));
+
+    // Handle image
+    if (!string.IsNullOrWhiteSpace(imageurl))
+    {
+        using var httpClient = new HttpClient();
+        var imageBytes = await httpClient.GetByteArrayAsync(imageurl);
+
+        using var imageStream = new MemoryStream(imageBytes);
+        var image = PdfImage.FromStream(imageStream);
+        graphics.DrawImage(image, new RectangleF(0, 150, image.Width, image.Height));
+    }
+
+    // Save the document to a MemoryStream
+    using var pdfStream = new MemoryStream();
+    document.SaveToStream(pdfStream);
+
+    // Return the PDF file
+    pdfStream.Position = 0;
+    return Results.File(pdfStream, "application/pdf", "document.pdf");
 });
+
+//app.MapPost("/createpdf", async (string title, string description, string newsDate, string imageUrl) =>
+//{
+//    try
+//    {
+//        // Validate input
+//        if (string.IsNullOrEmpty(title))
+//        {
+//            return Results.BadRequest("Title cannot be empty.");
+//        }
+
+//        // Setup PDF file path and directory
+//        var pdfFileName = $"{title}.pdf";
+//        var pdfDirectory = @"D:\TestPdf";
+//        var pdfPath = Path.Combine(pdfDirectory, pdfFileName);
+
+//        // Ensure the directory exists; create if it doesn't
+//        Directory.CreateDirectory(pdfDirectory);
+
+//        // Create the PDF document
+//        using (var document = new PdfDocument())
+//        {
+//            // Set up fonts
+//            var titleFont = new PdfFont(PdfFontFamily.Helvetica, 14f, PdfFontStyle.Bold);
+//            var dateFont = new PdfFont(PdfFontFamily.Helvetica, 12f);
+//            var descriptionFont = new PdfFont(PdfFontFamily.Helvetica, 10f);
+
+//            // Split the description into paragraphs
+//            var paragraphs = description.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+//            var contentHeight = 0f;
+//            var pageIndex = 0;
+
+//            foreach (var paragraph in paragraphs)
+//            {
+//                var newPageNeeded = false;
+
+//                do
+//                {
+//                    // Add a new page
+//                    var page = document.Pages.Add();
+//                    var pdfGraphics = page.Graphics;
+
+//                    // Draw the title
+//                    var titleRect = new RectangleF(50, 20, page.Size.Width - 100, 50);
+//                    pdfGraphics.DrawString(title, titleFont, PdfBrushes.Black, titleRect, PdfStringFormat.Center);
+
+//                    // Draw the date
+//                    var formattedDate = $"Date: {newsDate}";
+//                    var dateSize = pdfGraphics.MeasureString(formattedDate, dateFont);
+//                    var dateX = page.Size.Width - dateSize.Width - 50;
+//                    var dateY = titleRect.Top;
+//                    pdfGraphics.DrawString(formattedDate, dateFont, PdfBrushes.Black, new PointF(dateX, dateY));
+
+//                    // Draw the image
+//                    if (!string.IsNullOrEmpty(imageUrl))
+//                    {
+//                        try
+//                        {
+//                            using var httpClient = new HttpClient();
+//                            var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
+
+//                            using var imageStream = new MemoryStream(imageBytes);
+//                            var image = PdfImage.FromStream(imageStream);
+//                            var imageWidth = 200f;
+//                            var imageHeight = imageWidth * image.PixelHeight / image.PixelWidth;
+//                            pdfGraphics.DrawImage(image, (page.Size.Width - imageWidth) / 2, 100, imageWidth, imageHeight);
+//                        }
+//                        catch (Exception ex)
+//                        {
+//                            Console.WriteLine($"Error loading image: {ex.Message}");
+//                        }
+//                    }
+
+//                    // Draw the description
+//                    var descriptionRect = new RectangleF(50, 300, page.Size.Width - 100, page.Size.Height - 350);
+//                    var textFormatter = new PdfTextFormatter(pdfGraphics);
+//                    textFormatter.DrawString(paragraph, descriptionFont, PdfBrushes.Black, descriptionRect);
+
+//                    // Calculate content height
+//                    contentHeight += descriptionFont.GetHeight();
+
+//                    // Check if a new page is needed
+//                    newPageNeeded = contentHeight > (page.Size.Height - 350); // 350 is the bottom margin
+
+//                    if (newPageNeeded)
+//                    {
+//                        contentHeight = 0;
+//                    }
+
+//                    // Save the document if it has content
+//                    if (document.Pages.Count > 0)
+//                    {
+//                        document.Save(pdfPath);
+//                    }
+//                }
+//                while (newPageNeeded);
+//            }
+//        }
+
+//        return Results.Ok($"PDF '{pdfFileName}' created and saved to D:\\TestPdf.");
+//    }
+//    catch (Exception ex)
+//    {
+//        Console.WriteLine($"Error creating PDF: {ex.Message}");
+//        return Results.NotFound("PDF creation failed.");
+//    }
+//});
 
 app.Run();
 async Task<string> ScrapeArticleContentAsync(string url, string elementId, string elementClass)
