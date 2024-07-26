@@ -1,0 +1,15 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.suo
+*.ncb
+*.sdf
+*.cache
+*.pdb
+*.opendb
+*.plg
+*.log
+bin/
+obj/
