@@ -844,7 +844,6 @@ app.MapGet("/api/NewList/{id}", async(AppData dbContext, int id) =>
 //        return Results.NotFound("PDF creation failed.");
 //    }
 //});
-
 app.MapPost("/createpdf", async (string title, string date, string description, string imageUrl) =>
 {
     // Validate input
@@ -853,44 +852,40 @@ app.MapPost("/createpdf", async (string title, string date, string description, 
         return Results.BadRequest("Title, date, description, and image URL are required.");
     }
 
-    // Sanitize the title for the filename
-    string sanitizedTitle = Regex.Replace(title, @"[<>:""/\\|?*\x00-\x1F]", "_");
-
-    // Define the file path
-    string filePath = Path.Combine("D:\\TestPdf", sanitizedTitle + ".pdf");
-
     // Create a PdfDocument instance
     PdfDocument pdf = new PdfDocument();
 
     // Add a page
     PdfPageBase page = pdf.Pages.Add();
 
-    // Define page dimensions
-    SizeF pageSize = page.Canvas.ClientSize;
-    float pageWidth = pageSize.Width;
-    float pageHeight = pageSize.Height;
-
-    // Create a PdfFont instance for the title (bold and centered)
+    // Create a PdfFont instance
     PdfFont titleFont = new PdfFont(PdfFontFamily.Helvetica, 14, PdfFontStyle.Bold);
-    PdfStringFormat titleFormat = new PdfStringFormat
-    {
-        Alignment = PdfTextAlignment.Center
-    };
-
-    // Draw the title (centered)
-    RectangleF titleBounds = new RectangleF(new PointF(0, 10), new SizeF(pageWidth, 30));
-    page.Canvas.DrawString(title, titleFont, PdfBrushes.Black, titleBounds, titleFormat);
-
-    // Create a PdfFont instance for the date (right-aligned)
     PdfFont dateFont = new PdfFont(PdfFontFamily.Helvetica, 11);
-    PdfStringFormat dateFormat = new PdfStringFormat
-    {
-        Alignment = PdfTextAlignment.Right
-    };
+    PdfFont descriptionFont = new PdfFont(PdfFontFamily.Helvetica, 11);
 
-    // Draw the date (right-aligned)
-    RectangleF dateBounds = new RectangleF(new PointF(0, 50), new SizeF(pageWidth - 20, 30));
-    page.Canvas.DrawString(date, dateFont, PdfBrushes.Black, dateBounds, dateFormat);
+    // Create PdfStringFormat instances for alignment
+    PdfStringFormat titleFormat = new PdfStringFormat { Alignment = PdfTextAlignment.Left };
+    PdfStringFormat dateFormat = new PdfStringFormat { Alignment = PdfTextAlignment.Right };
+    PdfStringFormat descriptionFormat = new PdfStringFormat { Alignment = PdfTextAlignment.Left };
+
+    // Define text and image positions
+    float margin = 20;
+    float titleHeight = 20;
+    float dateHeight = 40;
+    float imageHeight = 150;
+    float descriptionTop = imageHeight + margin + titleHeight;
+
+    // Draw title
+    PdfTextWidget titleWidget = new PdfTextWidget(title, titleFont, PdfBrushes.Black);
+    RectangleF titleBounds = new RectangleF(margin, margin, page.Canvas.ClientSize.Width - 2 * margin, titleHeight);
+    titleWidget.StringFormat = titleFormat;
+    titleWidget.Draw(page, titleBounds);
+
+    // Draw date
+    PdfTextWidget dateWidget = new PdfTextWidget(date, dateFont, PdfBrushes.Black);
+    RectangleF dateBounds = new RectangleF(page.Canvas.ClientSize.Width - margin - 150, margin, 150, dateHeight);
+    dateWidget.StringFormat = dateFormat;
+    dateWidget.Draw(page, dateBounds);
 
     // Download the image from the URL
     using (HttpClient httpClient = new HttpClient())
@@ -903,14 +898,11 @@ app.MapPost("/createpdf", async (string title, string date, string description, 
                 // Load the image into a PdfImage object
                 PdfImage image = PdfImage.FromStream(imageStream);
 
-                // Define image bounds and center it on the page
-                float imageWidth = 200; // Adjust width as needed
-                float imageHeight = 150; // Adjust height as needed
-                RectangleF imageBounds = new RectangleF(
-                    (pageWidth - imageWidth) / 2,
-                    100, // Position below the date
-                    imageWidth,
-                    imageHeight);
+                // Define image bounds (centered horizontally)
+                float imageWidth = page.Canvas.ClientSize.Width - 2 * margin;
+                float imageX = margin;
+                float imageY = titleHeight + margin; // Position below the title
+                RectangleF imageBounds = new RectangleF(imageX, imageY, imageWidth, imageHeight);
 
                 // Draw the image onto the page
                 page.Canvas.DrawImage(image, imageBounds);
@@ -922,33 +914,132 @@ app.MapPost("/createpdf", async (string title, string date, string description, 
         }
     }
 
-    // Create a PdfFont instance for the description
-    PdfFont descriptionFont = new PdfFont(PdfFontFamily.Helvetica, 11);
-    PdfStringFormat descriptionFormat = new PdfStringFormat
-    {
-        Alignment = PdfTextAlignment.Left,
-        LineSpacing = 20f
-    };
-
-    // Draw the description below the image
-    RectangleF descriptionBounds = new RectangleF(new PointF(10, 260), new SizeF(pageWidth - 20, pageHeight - 260));
-    PdfTextWidget descriptionWidget = new PdfTextWidget(description, descriptionFont, PdfBrushes.Black)
-    {
-        StringFormat = descriptionFormat
-    };
+    // Draw description
+    PdfTextWidget descriptionWidget = new PdfTextWidget(description, descriptionFont, PdfBrushes.Black);
+    RectangleF descriptionBounds = new RectangleF(margin, descriptionTop, page.Canvas.ClientSize.Width - 2 * margin, page.Canvas.ClientSize.Height - descriptionTop - margin);
+    descriptionWidget.StringFormat = descriptionFormat;
     descriptionWidget.Draw(page, descriptionBounds);
 
-    // Save the PDF to the specified path
-    try
+    // Save to a memory stream
+    using (var stream = new MemoryStream())
     {
-        pdf.SaveToFile(filePath, Spire.Pdf.FileFormat.PDF);
-        return Results.Ok($"PDF successfully saved to {filePath}");
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest($"Failed to save PDF: {ex.Message}");
+        pdf.SaveToStream(stream, Spire.Pdf.FileFormat.PDF);
+        stream.Position = 0;
+        return Results.File(stream.ToArray(), "application/pdf", "demo.pdf");
     }
 });
+
+//app.MapPost("/createpdf", async (string title, string date, string description, string imageUrl) =>
+//{
+//    // Validate input
+//    if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(date) || string.IsNullOrEmpty(description) || string.IsNullOrEmpty(imageUrl))
+//    {
+//        return Results.BadRequest("Title, date, description, and image URL are required.");
+//    }
+
+//    // Sanitize the title for the filename
+//    string sanitizedTitle = Regex.Replace(title, @"[<>:""/\\|?*\x00-\x1F]", "_");
+
+//    // Define the file path
+//    string filePath = Path.Combine("D:\\TestPdf", sanitizedTitle + ".pdf");
+
+//    // Create a PdfDocument instance
+//    PdfDocument pdf = new PdfDocument();
+
+//    // Add a page
+//    PdfPageBase page = pdf.Pages.Add();
+
+//    // Define page dimensions
+//    SizeF pageSize = page.Canvas.ClientSize;
+//    float pageWidth = pageSize.Width;
+//    float pageHeight = pageSize.Height;
+
+//    // Create a PdfFont instance for the title (bold and centered)
+//    PdfFont titleFont = new PdfFont(PdfFontFamily.Helvetica, 14, PdfFontStyle.Bold);
+//    PdfStringFormat titleFormat = new PdfStringFormat
+//    {
+//        Alignment = PdfTextAlignment.Center
+//    };
+
+//    // Draw the title (centered)
+//    RectangleF titleBounds = new RectangleF(new PointF(0, 10), new SizeF(pageWidth, 30));
+//    page.Canvas.DrawString(title, titleFont, PdfBrushes.Black, titleBounds, titleFormat);
+
+//    // Create a PdfFont instance for the date (right-aligned)
+//    PdfFont dateFont = new PdfFont(PdfFontFamily.Helvetica, 11);
+//    PdfStringFormat dateFormat = new PdfStringFormat
+//    {
+//        Alignment = PdfTextAlignment.Right
+//    };
+
+//    // Draw the date (right-aligned)
+//    RectangleF dateBounds = new RectangleF(new PointF(0, 50), new SizeF(pageWidth - 20, 30));
+//    page.Canvas.DrawString(date, dateFont, PdfBrushes.Black, dateBounds, dateFormat);
+
+//    // Download the image from the URL
+//    using (HttpClient httpClient = new HttpClient())
+//    {
+//        try
+//        {
+//            byte[] imageData = await httpClient.GetByteArrayAsync(imageUrl);
+//            using (MemoryStream imageStream = new MemoryStream(imageData))
+//            {
+//                // Load the image into a PdfImage object
+//                PdfImage image = PdfImage.FromStream(imageStream);
+
+//                // Define image bounds and center it on the page
+//                float imageWidth = 200; // Adjust width as needed
+//                float imageHeight = 150; // Adjust height as needed
+//                RectangleF imageBounds = new RectangleF(
+//                    (pageWidth - imageWidth) / 2,
+//                    100, // Position below the date
+//                    imageWidth,
+//                    imageHeight);
+
+//                // Draw the image onto the page
+//                page.Canvas.DrawImage(image, imageBounds);
+//            }
+//        }
+//        catch (Exception ex)
+//        {
+//            return Results.BadRequest($"Failed to download or add image: {ex.Message}");
+//        }
+//    }
+
+//    // Create a PdfFont instance for the description
+//    PdfFont descriptionFont = new PdfFont(PdfFontFamily.Helvetica, 11);
+//    PdfStringFormat descriptionFormat = new PdfStringFormat
+//    {
+//        Alignment = PdfTextAlignment.Left,
+//        LineSpacing = 20f
+//    };
+
+//    // Draw the description below the image
+//    RectangleF descriptionBounds = new RectangleF(new PointF(10, 260), new SizeF(pageWidth - 20, pageHeight - 260));
+//    PdfTextWidget descriptionWidget = new PdfTextWidget(description, descriptionFont, PdfBrushes.Black)
+//    {
+//        StringFormat = descriptionFormat
+//    };
+//    descriptionWidget.Draw(page, descriptionBounds);
+
+
+
+
+
+
+
+
+//    // Save the PDF to the specified path
+//    try
+//    {
+//        pdf.SaveToFile(filePath, Spire.Pdf.FileFormat.PDF);
+//        return Results.Ok($"PDF successfully saved to {filePath}");
+//    }
+//    catch (Exception ex)
+//    {
+//        return Results.BadRequest($"Failed to save PDF: {ex.Message}");
+//    }
+//});
 //app.MapPost("/createpdf", async (string title, string description, string newsDate, string imageUrl) =>
 //{
 //    try
