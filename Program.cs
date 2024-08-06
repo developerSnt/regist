@@ -135,7 +135,7 @@ app.MapGet("/api/Login", async (AppData dbContext, string email, string password
         }
 
         // If login is successful, return user details
-        return Results.Ok(new { UserName = user.FirstName }); // Adjust properties as per your User model
+        return Results.Ok(new { UserName = user.FirstName, role = user.role }); // Adjust properties as per your User model
     }
     catch (Exception ex)
     {
@@ -385,6 +385,25 @@ app.MapPut("/api/update/{id}", async (int id, string name, string elementclass, 
 
     return Results.NoContent(); // 204 No Content on successful update
 });
+app.MapPut("/api/updatenewdata/{id}", async (int id, string tital, string date, string imageurl, string description, NewsData newDataInfo, AppData dbContext) =>
+{
+    var existingDataInfo = await dbContext.NewsDatas.FindAsync(id);
+    if (existingDataInfo == null)
+    {
+        return Results.NotFound($"Data with ID {id} not found.");
+    }
+
+    // Update properties based on newDataInfo or route parameters
+    existingDataInfo.tital = tital; // Update from newDataInfo if necessary
+    existingDataInfo.date = date; // Use route parameter directly for name
+    existingDataInfo.imageurl = imageurl; // Use route parameter directly for elementclass
+    existingDataInfo.description = description; // Use route parameter directly for elementid
+   
+
+    await dbContext.SaveChangesAsync();
+
+    return Results.Ok("data update successfully"); // 204 No Content on successful update
+});
 
 //app.MapDelete("/api/Delete/{id}", async (int id, AppData dbContext) =>
 //{
@@ -408,7 +427,68 @@ app.MapDelete("/api/Delete/{id}", async (int id, AppData dbContext) =>
 
     return Results.Ok($"Data with ID {id} deleted successfully.");
 });
+app.MapDelete("/api/Deletenews/{id}", async (int id, AppData dbContext) =>
+{
+    var dataInfo = await dbContext.NewsDatas.FindAsync(id);
+    if (dataInfo == null)
+    {
+        return Results.NotFound($"Data with ID {id} not found.");
+    }
 
+    dbContext.NewsDatas.Remove(dataInfo);
+    await dbContext.SaveChangesAsync();
+
+    return Results.Ok($"Data with ID {id} deleted successfully.");
+});
+app.MapPost("/api/InserNewsData", async (AppData dbContext, NewsData formData) =>
+{
+    if (formData != null)
+    {
+        try
+        {
+            await dbContext.NewsDatas.AddAsync(formData);
+            await dbContext.SaveChangesAsync();
+            return Results.Created($"/api/NewsDatas/{formData.Id}", formData);
+        }
+        catch (Exception ex)
+        {
+            // Log the exception for debugging purposes
+            Console.WriteLine($"Error saving fetch data info: {ex.Message}");
+            return Results.BadRequest("Failed to save .");
+        }
+    }
+    else
+    {
+        return Results.BadRequest("Invalid data format");
+    }
+});
+app.MapPost("/api/InsertnewData1", async (AppData dbContext, NewsData formdata1) =>
+{
+    if (formdata1 != null)
+    {
+        try
+        {
+            await dbContext.NewsDatas.AddAsync(formdata1);
+            await dbContext.SaveChangesAsync();
+            return Results.Created($"/api/InsertnewData1/{formdata1.Id}", formdata1);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving fetch data info: {ex.Message}");
+            return Results.BadRequest("Failed to save .");
+
+        }
+    }
+    else
+    {
+        return Results.BadRequest("Invalid data format");
+    }
+});
+app.MapGet("/api/NewDatas", async (AppData dbContext) =>
+{
+    var NewsList = await dbContext.NewsDatas.ToListAsync();
+    return Results.Ok(NewsList); // Return list of data
+});
 //app.MapGet("/api/Detailsview", async (AppData dbContext, string url, string name) =>
 //{
 //    try
@@ -928,7 +1008,11 @@ app.MapPost("/createpdf", async (string title, string date, string description, 
         return Results.File(stream.ToArray(), "application/pdf", "demo.pdf");
     }
 });
-
+app.MapGet("/api/NewDatas1/{id}", async (AppData dbContext, int id) =>
+{
+    var user = await dbContext.NewsDatas.FindAsync(id);
+    return Results.Ok(new { Id = user.Id,tital = user.tital, date = user.date, imageurl = user.imageurl, description = user.description });
+});
 //app.MapPost("/createpdf", async (string title, string date, string description, string imageUrl) =>
 //{
 //    // Validate input

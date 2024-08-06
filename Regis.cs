@@ -16,5 +16,6 @@ namespace regist
         public List<string> certificate { get; set; }
         public string password { get; set; }
         public string comformpassword { get; set; }
+        public string role { get; set; }
     }
 }

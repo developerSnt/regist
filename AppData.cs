@@ -11,5 +11,6 @@ namespace regist
         }
         public DbSet<Regis> Regist { get; set; }
         public DbSet<DataInfo> DataInfos { get; set; }
+        public DbSet<NewsData> NewsDatas { get; set; }
     }
 }
